@@ -172,7 +172,7 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             delegate.onDragUpdated(.init(draggable: draggingEntity, droppable: overlap.0))
         } else {
             self.lastCollidedDroppable = nil
-            self.delegate?.revertSelection(draggingEntity)
+            delegate.revertSelection(draggingEntity)
         }
         self.lastCollidedDroppableLock.signal()
         self.draggingEntityLock.signal()
@@ -214,10 +214,12 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
     public final func validateDrop() -> Bool {
         self.draggingEntityLock.wait()
         self.lastCollidedDroppableLock.wait()
+        self.delegateLock.wait()
         
         defer {
             self.lastCollidedDroppableLock.signal()
             self.draggingEntityLock.signal()
+            self.delegateLock.signal()
         }
         
         guard let draggingEntity = self.draggingEntity else { return false }
@@ -425,8 +427,10 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             self.delegateLock.signal()
             return
         }
+        self.delegateLock.signal()
         
         if self.validateDrop() {
+            self.delegateLock.wait()
             let droppedSymbolClass = delegate.classify(draggable: draggingEntity)
             (droppedSymbolClass == .first ? self.firstMatchingSymbolsSetLock : self.secondMatchingSymbolsSetLock).wait()
             
