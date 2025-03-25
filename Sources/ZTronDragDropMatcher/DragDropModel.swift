@@ -412,7 +412,7 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
         self.dropDestinationsOrderLock.signal()
     }
     
-    internal func onDropEnded() {
+    public final func onDropEnded() {
         self.delegateLock.wait()
         guard let draggingEntity = self.draggingEntity else { return }
         guard let delegate = self.delegate else {
