@@ -438,9 +438,11 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             return
         }
         self.delegateLock.signal()
+        self.draggingEntityLock.signal()
         
         if self.validateDrop() {
             self.delegateLock.wait()
+            self.draggingEntityLock.wait()
             let droppedSymbolClass = delegate.classify(draggable: draggingEntity)
             (droppedSymbolClass == .first ? self.firstMatchingSymbolsSetLock : self.secondMatchingSymbolsSetLock).wait()
             
@@ -505,10 +507,22 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
     
     // MARK: - GETTERS
     public final func isDragging() -> Bool {
+        self.draggingEntityLock.wait()
+        
+        defer {
+            self.draggingEntityLock.signal()
+        }
+        
         return self.draggingEntity != nil
     }
     
     public final func getDraggingEntity() -> Draggable? {
+        self.draggingEntityLock.wait()
+        
+        defer {
+            self.draggingEntityLock.signal()
+        }
+        
         return self.draggingEntity
     }
 
