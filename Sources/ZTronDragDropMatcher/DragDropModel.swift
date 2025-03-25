@@ -158,6 +158,11 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
         
         let overlap = self.overlaps(draggingEntityOrigin)
         
+        self.delegateLock.wait()
+        
+        defer {
+            self.delegateLock.signal()
+        }
         guard let delegate = self.delegate else { return }
 
         self.draggingEntityLock.wait()
@@ -167,6 +172,7 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             delegate.onDragUpdated(.init(draggable: draggingEntity, droppable: overlap.0))
         } else {
             self.lastCollidedDroppable = nil
+            self.delegate?.revertSelection(draggingEntity)
         }
         self.lastCollidedDroppableLock.signal()
         self.draggingEntityLock.signal()
