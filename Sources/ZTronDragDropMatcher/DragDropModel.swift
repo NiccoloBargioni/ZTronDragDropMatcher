@@ -156,7 +156,7 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
         }
         self.draggingEntityLock.signal()
         
-        let overlap = self.overlaps(draggingEntityOrigin)
+        let overlap: (Droppable, CGFloat)? = self.overlaps(draggingEntityOrigin)
         
         self.delegateLock.wait()
         
@@ -212,20 +212,20 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
     }
     
     public final func validateDrop() -> Bool {
-        self.lastCollidedDroppableLock.wait()
+        // self.lastCollidedDroppableLock.wait()
         guard let lastDroppable = self.lastCollidedDroppable else {
-            self.lastCollidedDroppableLock.signal()
+           // self.lastCollidedDroppableLock.signal()
             return false
         }
 
         
-        self.draggingEntityLock.wait()
-        self.delegateLock.wait()
+        // self.draggingEntityLock.wait()
+        // self.delegateLock.wait()
         
         defer {
-            self.lastCollidedDroppableLock.signal()
-            self.draggingEntityLock.signal()
-            self.delegateLock.signal()
+           // self.lastCollidedDroppableLock.signal()
+           // self.delegateLock.signal()
+           // self.draggingEntityLock.signal()
         }
         
         guard let draggingEntity = self.draggingEntity else { return false }
@@ -430,7 +430,6 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
     }
     
     public final func onDropEnded() {
-        self.delegateLock.wait()
         self.draggingEntityLock.wait()
         guard let draggingEntity = self.draggingEntity else {
             self.delegateLock.signal()
@@ -438,6 +437,7 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             return
         }
         
+        self.delegateLock.wait()
         guard let delegate = self.delegate else {
             self.draggingEntityLock.signal()
             self.delegateLock.signal()
@@ -466,6 +466,7 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             (droppedSymbolClass == .first ? self.firstSymbolsSlotsLock : self.secondSymbolsSlotsLock).wait()
             
             self.lastCollidedDroppableLock.wait()
+            
             guard let lastCollidedDroppable = self.lastCollidedDroppable else {
                 self.delegateLock.signal()
                 self.draggingEntityLock.signal()
@@ -473,9 +474,11 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
                 return
             }
             
+            let proposedDroppable = delegate.transformDrop(.init(draggable: draggingEntity, droppable: lastCollidedDroppable))
+            
             if let previousSymbol = droppedSymbolClass == .first ?
-                self.firstSymbolsSlots[lastCollidedDroppable] :
-                    self.secondSymbolsSlots[lastCollidedDroppable]
+                self.firstSymbolsSlots[proposedDroppable] :
+                    self.secondSymbolsSlots[proposedDroppable]
             {
                 if droppedSymbolClass == .first {
                     self.firstMatchingSymbolsSet.append(previousSymbol)
@@ -483,13 +486,13 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
                     self.secondMatchingSymbolsSet.append(previousSymbol)
                 }
                 
-                delegate.revertSelection(draggingEntity)
+                delegate.revertSelection(previousSymbol)
             }
             
             if droppedSymbolClass == .first {
-                self.firstSymbolsSlots[lastCollidedDroppable] = draggingEntity
+                self.firstSymbolsSlots[proposedDroppable] = draggingEntity
             } else {
-                self.secondSymbolsSlots[lastCollidedDroppable] = draggingEntity
+                self.secondSymbolsSlots[proposedDroppable] = draggingEntity
             }
             
             self.lastCollidedDroppableLock.signal()

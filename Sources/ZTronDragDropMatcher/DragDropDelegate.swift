@@ -7,6 +7,7 @@ public protocol DragDropDelegate<Draggable, Droppable, DroppableIndex>: Sendable
     
     func onDragUpdated(_ info: DragDropContext<Draggable, Droppable>)
     func validateDrop(_ info: DragDropContext<Draggable, Droppable>) -> Bool
+    func transformDrop(_ info: DragDropContext<Draggable, Droppable>) -> Droppable
     func autocomplete(_ info: DragDropContext<Draggable, Droppable>)
     
     func priority(for draggable: Draggable) -> Int
