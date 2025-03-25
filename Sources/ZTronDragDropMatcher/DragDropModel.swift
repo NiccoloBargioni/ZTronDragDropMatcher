@@ -212,8 +212,14 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
     }
     
     public final func validateDrop() -> Bool {
-        self.draggingEntityLock.wait()
         self.lastCollidedDroppableLock.wait()
+        guard let lastDroppable = self.lastCollidedDroppable else {
+            self.lastCollidedDroppableLock.signal()
+            return false
+        }
+
+        
+        self.draggingEntityLock.wait()
         self.delegateLock.wait()
         
         defer {
@@ -223,7 +229,6 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
         }
         
         guard let draggingEntity = self.draggingEntity else { return false }
-        guard let lastDroppable = self.lastCollidedDroppable else { return false }
         guard let delegate = self.delegate else { return true }
         
         return delegate.validateDrop(
@@ -422,7 +427,12 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
     
     public final func onDropEnded() {
         self.delegateLock.wait()
-        guard let draggingEntity = self.draggingEntity else { return }
+        self.draggingEntityLock.wait()
+        guard let draggingEntity = self.draggingEntity else {
+            self.draggingEntityLock.signal()
+            return
+        }
+        
         guard let delegate = self.delegate else {
             self.delegateLock.signal()
             return
@@ -470,17 +480,22 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             } else {
                 self.secondSymbolsSlots[lastCollidedDroppable] = draggingEntity
             }
+            
             self.lastCollidedDroppableLock.signal()
             
             (droppedSymbolClass == .first ? self.firstSymbolsSlotsLock : self.secondSymbolsSlotsLock).signal()
             (droppedSymbolClass == .first ? self.firstMatchingSymbolsSetLock : self.secondMatchingSymbolsSetLock).signal()
             
+            let draggingEntityClass = delegate.classify(draggable: draggingEntity)
+            
             self.delegateLock.signal()
-
-            self.autocompleteSetIfPossible(delegate.classify(draggable: draggingEntity))
+            self.draggingEntityLock.signal()
+            
+            self.autocompleteSetIfPossible(draggingEntityClass)
             self.sortTilesIfPossible()
         } else {
             self.delegateLock.signal()
+            self.draggingEntityLock.signal()
         }
         
         self.draggingEntity = nil
