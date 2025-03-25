@@ -338,6 +338,7 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
         return set == .first ?  self.firstMatchingSymbolsSet.count == 1 : self.secondMatchingSymbolsSet.count == 1
     }
     
+    // MARK: - USES firstMatchingSymbolsSetLock, secondMatchingSymbolsSetLock, delegateLock, registeredDroppablesLock, firstSymbolsSlotsLock, secondMatchingSymbolsSetLock
     internal func autocompleteSetIfPossible(_ set: SymbolsSet) {
         guard self.canAutocompletetSet(set) else { return }
         
@@ -354,7 +355,10 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             self.registeredDroppablesLock.signal()
             self.delegateLock.signal()
         }
-        guard let delegate = self.delegate else { return }
+        guard let delegate = self.delegate else {
+            (set == .first ? self.firstMatchingSymbolsSetLock : self.secondMatchingSymbolsSetLock).signal()
+            return
+        }
         
         (set == .first ? self.firstSymbolsSlotsLock : self.secondSymbolsSlotsLock).wait()
         guard let onlyLeftDroppable = self.registeredDroppables.first(where: { droppable in
@@ -429,14 +433,17 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
         self.delegateLock.wait()
         self.draggingEntityLock.wait()
         guard let draggingEntity = self.draggingEntity else {
+            self.delegateLock.signal()
             self.draggingEntityLock.signal()
             return
         }
         
         guard let delegate = self.delegate else {
+            self.draggingEntityLock.signal()
             self.delegateLock.signal()
             return
         }
+        
         self.delegateLock.signal()
         self.draggingEntityLock.signal()
         
@@ -460,6 +467,8 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             
             self.lastCollidedDroppableLock.wait()
             guard let lastCollidedDroppable = self.lastCollidedDroppable else {
+                self.delegateLock.signal()
+                self.draggingEntityLock.signal()
                 self.lastCollidedDroppableLock.signal()
                 return
             }
@@ -495,12 +504,11 @@ public final class DragDropModel<Draggable: Hashable & Sendable, Droppable: Drag
             
             self.autocompleteSetIfPossible(draggingEntityClass)
             self.sortTilesIfPossible()
-        } else {
-            self.delegateLock.signal()
-            self.draggingEntityLock.signal()
         }
         
+        self.draggingEntityLock.wait()
         self.draggingEntity = nil
+        self.draggingEntityLock.signal()
     }
     
     
